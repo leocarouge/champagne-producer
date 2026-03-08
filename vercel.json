@@ -1,0 +1,25 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/webhooks/stripe/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/invoices/[id]/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/calendar/import/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/calendar/export",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    }
+  ]
+}
