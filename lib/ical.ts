@@ -18,7 +18,7 @@ export function generateICalFeed(bookings: Booking[], roomName: string): string 
     if (booking.status === 'cancelled') continue
 
     cal.createEvent({
-      uid: booking.external_uid ?? `maison-lambert-${booking.id}`,
+      id: booking.external_uid ?? `maison-lambert-${booking.id}`,
       start: new Date(booking.check_in),
       end: new Date(booking.check_out),
       summary: booking.source === 'direct'

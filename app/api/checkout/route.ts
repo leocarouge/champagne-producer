@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate stock & build line items
-    const lineItems: { price_data: object; quantity: number }[] = []
+    const lineItems: { price_data: { currency: string; product_data: { name: string; images?: string[]; description?: string }; unit_amount: number }; quantity: number }[] = []
     let totalBottles = 0
 
     for (const item of items) {
