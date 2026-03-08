@@ -3,12 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+const TVA_RATE = 0.2
+
 function formatEur(amount: number) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount)
+  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + '€'
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -28,22 +30,32 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const order = invoice.order as any
   const items: any[] = order.order_items ?? []
   const addr = order.shipping_address ?? {}
-  const isPaid = order.billing_status === 'paid'
 
-  const itemsRows = items.map((item: any) => `
+  // Calcul HT / TVA / TTC
+  const totalTTC = order.total ?? 0
+  const totalHT = totalTTC / (1 + TVA_RATE)
+  const totalTVA = totalTTC - totalHT
+
+  const itemsRows = items.map((item: any) => {
+    const priceTTC = item.unit_price ?? 0
+    return `
     <tr>
-      <td>${item.product_name}</td>
+      <td class="center">0,75</td>
+      <td class="center">Bouteille ${item.product_name}</td>
       <td class="center">${item.quantity}</td>
-      <td class="right">${formatEur(item.unit_price)}</td>
-      <td class="right bold">${formatEur(item.total_price)}</td>
-    </tr>
-  `).join('')
+      <td class="center">${priceTTC.toFixed(0)}</td>
+      <td class="center">${(priceTTC * item.quantity).toFixed(0)}</td>
+    </tr>`
+  }).join('')
+
+  const addrLine = [addr.line1, addr.line2, addr.postal_code && addr.city ? `${addr.postal_code} ${addr.city}` : '', addr.country].filter(Boolean).join(', ')
+
+  const logoUrl = `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/cropped-cropped-logocarouge.png`
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facture ${invoice.invoice_number}</title>
   <style>
     @page { margin: 2cm; size: A4; }
@@ -52,126 +64,132 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       .no-print { display: none !important; }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Georgia, 'Times New Roman', serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 48px; max-width: 820px; margin: auto; }
-    .print-btn { position: fixed; top: 20px; right: 20px; background: #C9A84C; color: #fff; border: none; padding: 10px 22px; cursor: pointer; font-size: 14px; border-radius: 4px; font-family: sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 2px solid #C9A84C; }
-    .brand { font-size: 18px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; }
-    .brand-sub { font-size: 11px; color: #888; margin-top: 6px; line-height: 1.6; font-style: italic; }
-    .inv-meta { text-align: right; }
-    .inv-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: #aaa; }
-    .inv-number { font-size: 22px; font-weight: bold; color: #C9A84C; margin-top: 4px; }
-    .inv-date { font-size: 11px; color: #666; margin-top: 6px; }
-    .status { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 8px; font-family: sans-serif; background: ${isPaid ? '#d1fae5' : '#dbeafe'}; color: ${isPaid ? '#065f46' : '#1e40af'}; }
-    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-    .party-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #aaa; margin-bottom: 8px; font-family: sans-serif; }
-    .party-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-    .party-info { font-size: 12px; color: #555; line-height: 1.6; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
-    thead th { background: #1a1a1a; color: #fff; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-family: sans-serif; font-weight: 600; }
-    thead th.center { text-align: center; }
-    thead th.right { text-align: right; }
-    tbody tr:nth-child(even) { background: #faf8f4; }
-    tbody td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f0ede6; }
-    tbody td.center { text-align: center; }
-    tbody td.right { text-align: right; }
-    tbody td.bold { font-weight: bold; }
-    .totals { margin-left: auto; width: 300px; border-top: 1px solid #e5e0d8; padding-top: 12px; }
-    .total-line { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
-    .total-line.muted { color: #777; }
-    .total-line.final { font-size: 16px; font-weight: bold; color: #C9A84C; border-top: 2px solid #C9A84C; padding-top: 10px; margin-top: 6px; }
-    .note { margin-top: 40px; background: #faf8f4; border-left: 3px solid #C9A84C; padding: 12px 16px; font-size: 11px; color: #666; line-height: 1.6; }
-    .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #eee; font-size: 10px; color: #aaa; text-align: center; line-height: 1.7; font-family: sans-serif; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #000; background: #fff; padding: 40px; max-width: 800px; margin: auto; }
+    .print-btn { position: fixed; top: 16px; right: 16px; background: #8B1A1A; color: #fff; border: none; padding: 10px 22px; cursor: pointer; font-size: 13px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+    /* Logo + titre */
+    .top { text-align: center; margin-bottom: 24px; }
+    .top img { height: 80px; margin-bottom: 12px; }
+    .top h1 { font-size: 16px; font-weight: bold; letter-spacing: 0.05em; }
+
+    /* Client */
+    .client-block { margin-bottom: 20px; }
+    .client-row { margin-bottom: 4px; }
+    .client-row strong { font-weight: bold; }
+
+    /* Références */
+    .ref-table { border-collapse: collapse; margin-bottom: 24px; }
+    .ref-table td { border: 1px solid #000; padding: 5px 12px; font-size: 12px; }
+    .ref-table td:first-child { font-weight: bold; }
+
+    /* Tableau articles */
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .items-table th { border: 1px solid #000; padding: 6px 8px; text-align: center; font-weight: bold; background: #fff; font-size: 12px; }
+    .items-table td { border: 1px solid #000; padding: 6px 8px; font-size: 12px; }
+    .items-table td.center { text-align: center; }
+    .items-table .body-rows td { height: 24px; }
+
+    /* Totaux */
+    .totals { text-align: right; margin-bottom: 24px; }
+    .totals table { display: inline-table; border-collapse: collapse; }
+    .totals td { padding: 3px 12px; font-size: 12px; text-align: right; }
+    .totals .label { font-weight: bold; }
+    .totals .final td { font-weight: bold; font-size: 14px; }
+
+    /* Mentions légales */
+    .legal { font-size: 10px; color: #333; margin-bottom: 16px; line-height: 1.5; font-style: italic; }
+    .bank { font-size: 11px; margin-bottom: 24px; line-height: 1.7; font-style: italic; }
+
+    /* Pied de page */
+    .footer { border-top: 1px solid #000; padding-top: 10px; text-align: center; font-size: 10px; line-height: 1.7; font-style: italic; color: #333; }
   </style>
 </head>
 <body>
-  <button class="print-btn no-print" onclick="window.print()">Imprimer / Sauvegarder en PDF</button>
+  <button class="print-btn no-print" onclick="window.print()">Imprimer / PDF</button>
 
-  <div class="header">
-    <div>
-      <div class="brand">Champagne Carouge-Cireddu</div>
-      <div class="brand-sub">
-        Flavigny · Marne · France<br>
-        Récoltant-Manipulant
-      </div>
-    </div>
-    <div class="inv-meta">
-      <div class="inv-label">Facture</div>
-      <div class="inv-number">${invoice.invoice_number}</div>
-      <div class="inv-date">Émise le ${formatDate(invoice.issued_at)}</div>
-      <div class="status">${isPaid ? 'Payée' : 'Émise'}</div>
-    </div>
+  <div class="top">
+    <img src="${logoUrl}" alt="Champagne Carouge Cireddu" onerror="this.style.display='none'" />
+    <h1>CHAMPAGNE CAROUGE CIREDDU</h1>
   </div>
 
-  <div class="parties">
-    <div>
-      <div class="party-label">Émetteur</div>
-      <div class="party-name">Champagne Carouge-Cireddu</div>
-      <div class="party-info">
-        Flavigny, Marne<br>
-        France
-      </div>
-    </div>
-    <div>
-      <div class="party-label">Facturé à</div>
-      <div class="party-name">${order.customer_name}</div>
-      <div class="party-info">
-        ${order.customer_email}<br>
-        ${order.customer_phone ? order.customer_phone + '<br>' : ''}
-        ${addr.line1 ? addr.line1 + '<br>' : ''}
-        ${addr.line2 ? addr.line2 + '<br>' : ''}
-        ${addr.postal_code ? addr.postal_code + ' ' : ''}${addr.city ?? ''}<br>
-        ${addr.country ?? 'France'}
-      </div>
-    </div>
+  <div class="client-block">
+    <div class="client-row"><strong>Nom</strong> ${order.customer_name}</div>
+    <div class="client-row"><strong>Adresse</strong> ${addrLine || ''}</div>
+    <div class="client-row"><strong>Adresse e-mail</strong> ${order.customer_email}</div>
+    ${order.customer_phone ? `<div class="client-row"><strong>Téléphone</strong> ${order.customer_phone}</div>` : ''}
   </div>
 
-  <table>
+  <table class="ref-table">
+    <tr>
+      <td>numéro de facturation</td>
+      <td>${invoice.invoice_number}</td>
+    </tr>
+    <tr>
+      <td>Date de facturation</td>
+      <td>${formatDate(invoice.issued_at ?? order.created_at)}</td>
+    </tr>
+  </table>
+
+  <table class="items-table">
     <thead>
       <tr>
-        <th>Désignation</th>
-        <th class="center">Qté</th>
-        <th class="right">Prix unit. HT</th>
-        <th class="right">Total HT</th>
+        <th>Contenance</th>
+        <th>Designation</th>
+        <th>Qté</th>
+        <th>Prix unitaire TTC</th>
+        <th>Montant TTC</th>
       </tr>
     </thead>
     <tbody>
-      ${itemsRows || '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Aucun article</td></tr>'}
+      ${itemsRows || '<tr><td colspan="5" style="text-align:center;padding:16px;color:#888">Aucun article</td></tr>'}
       ${order.shipping_cost > 0 ? `
-      <tr>
-        <td>Frais de livraison</td>
+      <tr class="body-rows">
+        <td class="center">—</td>
+        <td class="center">Frais de livraison</td>
         <td class="center">1</td>
-        <td class="right">${formatEur(order.shipping_cost)}</td>
-        <td class="right bold">${formatEur(order.shipping_cost)}</td>
+        <td class="center">${order.shipping_cost.toFixed(0)}</td>
+        <td class="center">${order.shipping_cost.toFixed(0)}</td>
       </tr>` : ''}
+      <!-- Lignes vides pour remplir le tableau comme le modèle -->
+      ${Array(Math.max(0, 8 - items.length)).fill('<tr class="body-rows"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>').join('')}
     </tbody>
   </table>
 
   <div class="totals">
-    <div class="total-line muted">
-      <span>Sous-total</span>
-      <span>${formatEur(order.subtotal)}</span>
-    </div>
-    ${order.shipping_cost > 0 ? `
-    <div class="total-line muted">
-      <span>Livraison</span>
-      <span>${formatEur(order.shipping_cost)}</span>
-    </div>` : ''}
-    <div class="total-line muted">
-      <span>TVA (exonérée — franchise en base)</span>
-      <span>0,00 €</span>
-    </div>
-    <div class="total-line final">
-      <span>Total TTC</span>
-      <span>${formatEur(order.total)}</span>
-    </div>
+    <table>
+      <tr>
+        <td class="label">Total HT</td>
+        <td>${formatEur(totalHT)}</td>
+      </tr>
+      <tr>
+        <td class="label">TVA (20%)</td>
+        <td>${formatEur(totalTVA)}</td>
+      </tr>
+      <tr class="final">
+        <td class="label">Total TTC</td>
+        <td>${formatEur(totalTTC)}</td>
+      </tr>
+    </table>
   </div>
 
-  ${order.notes ? `<div class="note"><strong>Notes :</strong> ${order.notes}</div>` : ''}
+  <div class="legal">
+    Toute somme impayée à son échéance produira, de plein droit et sans mise en demeure, un intérêt égal à 1,5 fois le taux d'intérêt légal par mois de retard.<br>
+    Nos conditions de vente ne prévoient pas d'escompte pour paiement anticipé.
+  </div>
+
+  <div class="bank">
+    Coordonnées bancaires<br>
+    Titulaire du compte : JAMES CAROUGE<br>
+    IBAN FR76 1020 6000 4848 3510 3712 067<br>
+    BIC AGRIFRPP802
+  </div>
 
   <div class="footer">
-    Champagne Carouge-Cireddu · Flavigny · Marne · France<br>
-    TVA non applicable — article 293 B du CGI<br>
-    Commande n° ${order.id.slice(0, 8).toUpperCase()} · ${formatDate(order.created_at)}
+    CHAMPAGNE CAROUGE CIREDDU<br>
+    6 rue de l'eglise 51190 FLAVIGNY<br>
+    Tel : 06 77 95 90 62<br>
+    SIRET 843 516 642 00017<br>
+    N° TVA intracommunautaire FR67 843 516 642
   </div>
 </body>
 </html>`
