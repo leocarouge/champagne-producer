@@ -104,7 +104,7 @@ export default function ChambresPage() {
               </div>
               <div className="p-5 bg-zinc-950 text-white rounded-xl text-center">
                 <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-1">À partir de</p>
-                <p className="font-serif text-4xl font-bold">200 €<span className="text-lg font-normal text-zinc-400"> / nuit</span></p>
+                <p className="font-serif text-4xl font-bold">300 €<span className="text-lg font-normal text-zinc-400"> / nuit</span></p>
                 <p className="text-zinc-400 text-xs mt-1">2 nuits minimum</p>
                 <Button asChild className="w-full mt-4 gap-2">
                   <Link href="/chambres/logement-complet">
