@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,12 +40,25 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [roomId, setRoomId] = useState<string | null>(null)
+  const [prixNuit, setPrixNuit] = useState('300')
+  const [savingRoom, setSavingRoom] = useState(false)
+  const [savedRoom, setSavedRoom] = useState(false)
 
   const fetchSettings = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/settings')
-    const data = await res.json()
-    setValues({ ...DEFAULTS, ...(data.data ?? {}) })
+    const [settingsRes, roomsRes] = await Promise.all([
+      fetch('/api/settings'),
+      fetch('/api/rooms'),
+    ])
+    const settingsData = await settingsRes.json()
+    setValues({ ...DEFAULTS, ...(settingsData.data ?? {}) })
+    const roomsData = await roomsRes.json()
+    const room = roomsData.data?.[0]
+    if (room) {
+      setRoomId(room.id)
+      setPrixNuit(String(room.price_per_night ?? 300))
+    }
     setLoading(false)
   }, [])
 
@@ -69,8 +82,46 @@ export default function AdminSettingsPage() {
     }
   }
 
+  const handleSaveRoom = async () => {
+    if (!roomId) return
+    setSavingRoom(true)
+    await fetch(`/api/rooms/${roomId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price_per_night: Number(prixNuit) }),
+    })
+    setSavingRoom(false)
+    setSavedRoom(true)
+    setTimeout(() => setSavedRoom(false), 3000)
+  }
+
   return (
     <div>
+      {/* Section logement */}
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Home className="w-5 h-5 text-[#C9A84C]" />
+          <h2 className="font-serif text-xl font-bold text-zinc-900">Logement</h2>
+        </div>
+        <div className="bg-white rounded-xl border border-zinc-100 shadow-sm p-6">
+          <div className="flex items-end gap-4">
+            <div className="flex-1 max-w-xs">
+              <Label className="font-medium text-zinc-700">Prix par nuit (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                value={prixNuit}
+                onChange={(e) => setPrixNuit(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <Button onClick={handleSaveRoom} disabled={savingRoom || !roomId}>
+              {savingRoom ? 'Enregistrement...' : savedRoom ? 'Enregistré !' : 'Enregistrer'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-zinc-900">Paramètres du site</h1>

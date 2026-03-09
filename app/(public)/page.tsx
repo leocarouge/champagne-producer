@@ -73,7 +73,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
               { icon: Clock, label: 'Flavigny, Marne', desc: 'Au cœur du vignoble champenois' },
-              { icon: Leaf, label: 'Agriculture durable', desc: 'Vignes cultivées avec respect' },
+              { icon: Leaf, label: 'Vignoble familial', desc: 'Vignes cultivées avec soin' },
             ].map(({ icon: Icon, label, desc }) => (
               <div key={label} className="text-center">
                 <div className="w-12 h-12 rounded-full bg-[#C9A84C]/10 border border-[#C9A84C]/30 flex items-center justify-center mx-auto mb-4">

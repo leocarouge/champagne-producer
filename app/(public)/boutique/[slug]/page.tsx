@@ -206,7 +206,7 @@ export default function ProductPage() {
               {[
                 { icon: Truck, label: 'Livraison soignée', sub: 'Carton renforcé' },
                 { icon: Shield, label: 'Paiement sécurisé', sub: 'Stripe SSL' },
-                { icon: Award, label: 'Qualité garantie', sub: 'Récoltant direct' },
+                { icon: Award, label: 'Qualité garantie', sub: 'Champagne de vigneron' },
               ].map(({ icon: Icon, label, sub }) => (
                 <div key={label} className="text-center">
                   <Icon className="w-5 h-5 text-[#C9A84C] mx-auto mb-1.5" />
